@@ -1,0 +1,226 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workout Log Sport Tracker</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Workout Log Sport Tracker</h1>
+      <p>Use this simple demo to keep track of your daily training.</p>
+    </header>
+
+    <section class="card login-card guest-view" id="auth-card">
+      <div class="auth-tabs" role="tablist" aria-label="Authentication">
+        <button type="button" class="auth-tab is-active" data-mode="login">Sign In</button>
+        <button type="button" class="auth-tab" data-mode="register">Register</button>
+      </div>
+
+      <form id="login-form" class="auth-form" novalidate>
+        <div class="form-field">
+          <label for="login-username">Username*</label>
+          <input
+            id="login-username"
+            name="username"
+            type="text"
+            placeholder="athlete"
+            autocomplete="username"
+            required
+          />
+        </div>
+        <div class="form-field">
+          <label for="login-password">Password*</label>
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            placeholder="123456"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+        <button type="submit">Sign In</button>
+        <p id="login-message" class="form-message" role="status" aria-live="polite"></p>
+        <p class="hint">Or use the demo account: athlete / 123456</p>
+      </form>
+
+      <form id="register-form" class="auth-form" novalidate hidden>
+        <div class="form-field">
+          <label for="register-username">Username*</label>
+          <input
+            id="register-username"
+            name="username"
+            type="text"
+            placeholder="myname"
+            autocomplete="username"
+            required
+          />
+        </div>
+        <div class="form-field">
+          <label for="register-password">Password* (at least 6 characters)</label>
+          <input
+            id="register-password"
+            name="password"
+            type="password"
+            placeholder="******"
+            autocomplete="new-password"
+            minlength="6"
+            required
+          />
+        </div>
+        <div class="form-field">
+          <label for="register-display">Display name</label>
+          <input
+            id="register-display"
+            name="displayName"
+            type="text"
+            placeholder="Enter a display name"
+            autocomplete="nickname"
+          />
+        </div>
+        <button type="submit">Register and Sign In</button>
+        <p id="register-message" class="form-message" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <main class="page-main auth-view" id="app-main" hidden>
+      <nav class="card app-nav full-width" aria-label="Main navigation">
+        <div class="app-nav__actions">
+          <button
+            type="button"
+            class="app-nav__button app-nav__button--primary"
+            id="open-activity-form-btn"
+          >
+            New Activity
+          </button>
+          <button type="button" class="app-nav__button" id="logout-btn">Sign Out</button>
+        </div>
+      </nav>
+
+      <section class="card calendar-card" id="calendar-card">
+        <div class="calendar-header">
+          <h2>Training Calendar</h2>
+          <div class="calendar-controls">
+            <button type="button" id="calendar-prev" class="secondary small" aria-label="Previous month">
+              Prev
+            </button>
+            <span id="calendar-label" class="calendar-label">--</span>
+            <button type="button" id="calendar-next" class="secondary small" aria-label="Next month">
+              Next
+            </button>
+          </div>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-weekdays">
+            <span>Sun</span>
+            <span>Mon</span>
+            <span>Tue</span>
+            <span>Wed</span>
+            <span>Thu</span>
+            <span>Fri</span>
+            <span>Sat</span>
+          </div>
+          <div id="calendar-days" class="calendar-days" aria-live="polite"></div>
+          <div id="calendar-summary" class="calendar-summary" role="status" aria-live="polite">
+            Select a calendar day to see its activities.
+          </div>
+        </div>
+      </section>
+
+      <section class="card weather-card" id="weather-card">
+        <h2>Today's Weather</h2>
+        <div id="weather-content" class="weather-content">
+          <p class="weather-location">Location: --</p>
+          <p class="weather-temp">Temperature: -- &deg;C</p>
+          <p class="weather-condition">Conditions: --</p>
+          <p class="weather-extra">Humidity: -- | Wind: -- km/h</p>
+          <p class="weather-updated">Updated: --</p>
+        </div>
+      </section>
+
+      <section class="card full-width" id="activity-form-card">
+        <h2>Log a Training Session</h2>
+        <form id="activity-form" novalidate>
+          <div class="form-field">
+            <label for="date">Date*</label>
+            <input id="date" name="date" type="date" required />
+          </div>
+
+          <div class="form-field">
+            <label for="sport">Sport / Activity*</label>
+            <input id="sport" name="sport" type="text" placeholder="e.g. Running or Yoga" required />
+          </div>
+
+          <div class="form-field">
+            <label for="duration">Duration (minutes)*</label>
+            <input id="duration" name="durationMinutes" type="number" min="1" required />
+          </div>
+
+          <div class="form-field">
+            <label for="intensity">Intensity</label>
+            <select id="intensity" name="intensity">
+              <option value="easy">Easy</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+
+          <div class="form-field form-field-inline">
+            <label for="is-public">
+              <input id="is-public" name="isPublic" type="checkbox" />
+              Share with the community so others can see it.
+            </label>
+          </div>
+
+          <div class="form-field">
+            <label for="photo">Upload photo (optional)</label>
+            <input id="photo" name="photo" type="file" accept="image/*" />
+          </div>
+
+          <div class="form-field">
+            <label for="notes">Notes</label>
+            <textarea id="notes" name="notes" rows="3"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="activity-submit">Save</button>
+            <button type="button" id="cancel-edit" class="secondary small" hidden>
+              Cancel Edit
+            </button>
+          </div>
+          <p id="activity-message" class="form-message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section class="card full-width toggle-card" id="activity-history-toggle">
+        <button
+          type="button"
+          class="secondary"
+          id="toggle-history-btn"
+          aria-expanded="false"
+          aria-controls="activity-list-card"
+        >
+          Show Activity History
+        </button>
+      </section>
+
+      <section class="card full-width" id="activity-list-card" hidden>
+        <h2>Your Activity History</h2>
+        <ul id="activity-list" class="activity-list"></ul>
+      </section>
+
+      <section class="card full-width" id="public-activity-card">
+        <h2>Community Feed</h2>
+        <ul id="public-activity-list" class="activity-list"></ul>
+      </section>
+    </main>
+
+    <footer class="page-footer">
+      <small>Future enhancements could connect to a database and membership system to become a full training site.</small>
+    </footer>
+
+    <script src="/js/app.js" type="module"></script>
+  </body>
+</html>
