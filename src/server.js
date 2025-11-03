@@ -502,12 +502,13 @@ const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads');
 const fsPromises = fs.promises;
 
-// NEW: 建立 PostgreSQL 連線池
-// Render 會自動提供 DATABASE_URL 環境變數
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // 如果在 Render 上使用內部連線，建議開啟 SSL
-  // ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  // 啟用 SSL，並設定 rejectUnauthorized: false
+  // 這是因為我們是從外部連線到 Render，Render 需要 SSL
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // NEW: 資料庫初始化函式
