@@ -1,6 +1,6 @@
 'use strict';
 
-const fs = require('fs');
+// REMOVED: fs and fsPromises (不再需要檔案系統)
 const path = require('path');
 const express = require('express');
 const morgan = require('morgan');
@@ -15,10 +15,9 @@ const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads');
-const fsPromises = fs.promises;
 
-// NEW: 建立 PostgreSQL 連線池
+// REMOVED: UPLOAD_DIR (不再需要上傳資料夾)
+
 // NEW: 根據環境決定 SSL 設定
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -30,6 +29,7 @@ const pool = new Pool({
     ? false // Render 內部連線不需要 SSL
     : { rejectUnauthorized: false } // 本地外部連線需要 SSL
 });
+
 
 // NEW: 資料庫初始化函式
 async function initializeDatabase() {
@@ -46,6 +46,7 @@ async function initializeDatabase() {
     `);
 
     // 建立 activities 資料表
+    // NEW: photo_url 欄位現在將儲存 Base64 Data URL (它本來就是 TEXT，所以結構不需變更)
     await client.query(`
       CREATE TABLE IF NOT EXISTS activities (
         id TEXT PRIMARY KEY,
@@ -54,7 +55,7 @@ async function initializeDatabase() {
         duration_minutes INTEGER NOT NULL,
         intensity TEXT DEFAULT 'moderate',
         notes TEXT,
-        photo_url TEXT,
+        photo_url TEXT, 
         is_public BOOLEAN DEFAULT false,
         owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -116,24 +117,12 @@ async function initializeDatabase() {
   }
 }
 
-// --- (檔案上傳相關的程式碼，保持不變) ---
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// --- (檔案上傳相關的程式碼) ---
+// REMOVED: fs.mkdirSync (不再需要)
 
+// MODIFIED: Multer 現在使用 memoryStorage() 將檔案暫存在記憶體中
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => {
-      cb(
-        null,
-        [
-          'activity',
-          req.userId || 'guest',
-          Date.now(),
-          Math.round(Math.random() * 1000)
-        ].join('-') + path.extname(file.originalname || '')
-      );
-    }
-  }),
+  storage: multer.memoryStorage(), // NEW: 使用記憶體儲存
   limits: {
     fileSize: 5 * 1024 * 1024 // 5 MB photo limit
   },
@@ -145,33 +134,10 @@ const upload = multer({
   }
 });
 
-// REMOVED: In-memory stores (usersByUsername, usersById, sessions, activitiesByUser)
 
-const deletePhotoFile = async (photoUrl) => {
-  if (!photoUrl) {
-    return;
-  }
-  const filename = path.basename(photoUrl);
-  if (!filename) {
-    return;
-  }
-  const filePath = path.join(UPLOAD_DIR, filename);
-  try {
-    await fsPromises.unlink(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      console.error('Failed to remove photo', error);
-    }
-  }
-};
+// REMOVED: deletePhotoFile (不再需要)
+// REMOVED: cleanupUploadedFile (不再需要)
 
-const cleanupUploadedFile = (req) => {
-  if (req.file) {
-    deletePhotoFile(`/uploads/${req.file.filename}`);
-  }
-};
-
-// REMOVED: seedUser object (已移至 initializeDatabase)
 
 // --- (中介軟體，保持不變) ---
 app.use(morgan('dev'));
@@ -357,11 +323,14 @@ app.get('/api/activities', requireAuth, async (req, res, next) => {
       [req.userId]
     );
     
-    // 將 is_public 轉為布林值 (雖然資料庫已是)
+    // *** BUG FIX ***
+    // 將 snake_case (duration_minutes) 轉為 camelCase (durationMinutes)
     const normalized = result.rows.map((activity) => ({
       ...activity,
+      durationMinutes: activity.duration_minutes, // <-- BUG FIX
+      photoUrl: activity.photo_url,             // 傳遞 Base64 data url
       isPublic: Boolean(activity.is_public),
-      ownerName: activity.owner_name // 已從 JOIN 取得
+      ownerName: activity.owner_name 
     }));
 
     res.json({ data: normalized });
@@ -382,8 +351,11 @@ app.get('/api/activities/public', requireAuth, async (_req, res, next) => {
        ORDER BY a.created_at DESC`
     );
     
+    // *** BUG FIX ***
     const feed = result.rows.map((activity) => ({
       ...activity,
+      durationMinutes: activity.duration_minutes, // <-- BUG FIX
+      photoUrl: activity.photo_url,             // 傳遞 Base64 data url
       isPublic: true,
       ownerName: activity.owner_name
     }));
@@ -412,12 +384,12 @@ app.get('/api/weather', requireAuth, async (req, res, next) => {
   }
 });
 
-// REFACTORED: createActivity (寫入資料庫)
+// REFACTORED: createActivity (寫入資料庫 + Base64)
 const createActivity = async (req, res, next) => {
+  // REMOVED: cleanupUploadedFile
   const { date, sport, durationMinutes, intensity, notes, isPublic } = req.body;
 
   if (!date || !sport || !durationMinutes) {
-    cleanupUploadedFile(req);
     return res.status(400).json({
       error: 'date, sport, and durationMinutes are required fields.'
     });
@@ -425,15 +397,20 @@ const createActivity = async (req, res, next) => {
 
   const parsedDuration = Number(durationMinutes);
   if (Number.isNaN(parsedDuration) || parsedDuration <= 0) {
-    cleanupUploadedFile(req);
     return res
       .status(400)
       .json({ error: 'durationMinutes must be a positive number.' });
   }
 
   const isPublicValue = parseBooleanFlag(isPublic, false);
-  const photoUrl = req.file ? `/uploads/${req.file.filename}` : '';
   const newActivityId = `activity-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+  
+  // NEW: 將上傳的檔案 (如果存在) 轉換為 Base64 Data URL
+  let photoUrl = '';
+  if (req.file) {
+    const base64Data = req.file.buffer.toString('base64');
+    photoUrl = `data:${req.file.mimetype};base64,${base64Data}`;
+  }
 
   try {
     const newActivity = {
@@ -443,7 +420,7 @@ const createActivity = async (req, res, next) => {
       duration_minutes: parsedDuration,
       intensity: intensity || 'moderate',
       notes: notes || '',
-      photo_url: photoUrl,
+      photo_url: photoUrl, // 儲存 Base64 Data URL
       is_public: isPublicValue,
       owner_id: req.userId,
       created_at: new Date().toISOString(),
@@ -476,20 +453,19 @@ const createActivity = async (req, res, next) => {
       isPublic: newActivity.is_public,
       ownerId: newActivity.owner_id,
       createdAt: newActivity.created_at,
-      updatedAt: newActivity.updated_at,
-      // ownerName: ... (可以再查一次，但 create 通常只回傳新物件)
+      updatedAt: newActivity.updated_at
     }});
   } catch (err) {
-    cleanupUploadedFile(req);
+    // REMOVED: cleanupUploadedFile
     next(err);
   }
 };
 
-// (POST /api/activities 的 multer 處理邏輯保持不變)
+// (POST /api/activities 的 multer 處理邏輯保持不變，但內部 createActivity 已修改)
 app.post('/api/activities', requireAuth, (req, res, next) => {
   const isMultipart = req.headers['content-type']?.includes('multipart/form-data');
   if (!isMultipart) {
-    createActivity(req, res, next).catch(next); // 確保捕捉 async 錯誤
+    createActivity(req, res, next).catch(next); 
     return;
   }
   upload.single('photo')(req, res, (err) => {
@@ -499,17 +475,16 @@ app.post('/api/activities', requireAuth, (req, res, next) => {
       }
       return res.status(400).json({ error: err.message || 'Upload failed.' });
     }
-    createActivity(req, res, next).catch(next); // 確保捕捉 async 錯誤
+    createActivity(req, res, next).catch(next); 
   });
 });
 
-// REFACTORED: updateActivity (更新資料庫)
+// REFACTORED: updateActivity (更新資料庫 + Base64)
 const updateActivity = async (req, res, next) => {
   const { activityId } = req.params;
   const { date, sport, durationMinutes, intensity, notes, isPublic } = req.body;
 
   if (!date || !sport || !durationMinutes) {
-    cleanupUploadedFile(req);
     return res.status(400).json({
       error: 'date, sport, and durationMinutes are required fields.'
     });
@@ -517,26 +492,29 @@ const updateActivity = async (req, res, next) => {
 
   const parsedDuration = Number(durationMinutes);
   if (Number.isNaN(parsedDuration) || parsedDuration <= 0) {
-    cleanupUploadedFile(req);
     return res
       .status(400)
       .json({ error: 'durationMinutes must be a positive number.' });
   }
   
   try {
-    // 1. 找出舊的 activity (為了取得舊照片 URL)
+    // 1. 找出舊的 activity (僅用於檢查是否存在)
     const oldResult = await pool.query(
       'SELECT photo_url FROM activities WHERE id = $1 AND owner_id = $2',
       [activityId, req.userId]
     );
     
     if (oldResult.rows.length === 0) {
-      cleanupUploadedFile(req);
       return res.status(404).json({ error: 'Activity not found.' });
     }
     
     const prevPhotoUrl = oldResult.rows[0].photo_url;
-    const newPhotoUrl = req.file ? `/uploads/${req.file.filename}` : prevPhotoUrl;
+    
+    // NEW: 如果上傳了新檔案，轉換它。如果沒有，保留舊的 Base64。
+    const newPhotoUrl = req.file
+      ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
+      : prevPhotoUrl;
+      
     const isPublicValue = parseBooleanFlag(isPublic, false);
     
     // 2. 更新資料庫
@@ -559,7 +537,7 @@ const updateActivity = async (req, res, next) => {
         intensity || 'moderate',
         notes || '',
         isPublicValue,
-        newPhotoUrl,
+        newPhotoUrl, // 儲存新的 (或舊的) Base64
         activityId,
         req.userId
       ]
@@ -567,11 +545,8 @@ const updateActivity = async (req, res, next) => {
 
     const updatedActivity = updateResult.rows[0];
 
-    // 3. 如果上傳了新照片，且舊照片存在，就刪除舊照片檔案
-    if (req.file && prevPhotoUrl && prevPhotoUrl !== newPhotoUrl) {
-      await deletePhotoFile(prevPhotoUrl);
-    }
-
+    // REMOVED: 刪除舊檔案的邏輯
+    
     res.json({ data: {
       ...updatedActivity,
       durationMinutes: updatedActivity.duration_minutes,
@@ -580,7 +555,7 @@ const updateActivity = async (req, res, next) => {
     }});
 
   } catch (err) {
-    cleanupUploadedFile(req);
+    // REMOVED: cleanupUploadedFile
     next(err);
   }
 };
@@ -601,7 +576,6 @@ app.put('/api/activities/:activityId', requireAuth, (req, res, next) => {
       }
       return res.status(400).json({ error: err.message || 'Upload failed.' });
     }
-
     updateActivity(req, res, next).catch(next);
   });
 });
@@ -611,22 +585,17 @@ app.delete('/api/activities/:activityId', requireAuth, async (req, res, next) =>
   const { activityId } = req.params;
   
   try {
-    // 1. 刪除資料庫紀錄，並取回被刪除的 photo_url
+    // 1. 刪除資料庫紀錄 (不再需要 RETURNING photo_url)
     const result = await pool.query(
-      'DELETE FROM activities WHERE id = $1 AND owner_id = $2 RETURNING photo_url',
+      'DELETE FROM activities WHERE id = $1 AND owner_id = $2',
       [activityId, req.userId]
     );
     
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) { // 檢查 rowCount 而不是 rows.length
       return res.status(404).json({ error: 'Activity not found.' });
     }
     
-    const removedPhotoUrl = result.rows[0].photo_url;
-
-    // 2. 如果有照片，刪除對應的檔案
-    if (removedPhotoUrl) {
-      await deletePhotoFile(removedPhotoUrl);
-    }
+    // REMOVED: 刪除檔案的邏輯
     
     res.json({ data: { id: activityId } });
   } catch(err) {
@@ -636,7 +605,7 @@ app.delete('/api/activities/:activityId', requireAuth, async (req, res, next) =>
 
 // --- (錯誤處理中介軟體，保持不變) ---
 app.use((req, res) => {
-  res.status(404).json({ error: `Route not found: ${req.originalUrl}` });
+  res.status(444).json({ error: `Route not found: ${req.originalUrl}` });
 });
 
 app.use((err, _req, res, _next) => {
