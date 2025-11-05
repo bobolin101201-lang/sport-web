@@ -18,13 +18,17 @@ const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, '..', 'public', 'uploads');
 const fsPromises = fs.promises;
 
+// NEW: 建立 PostgreSQL 連線池
+// NEW: 根據環境決定 SSL 設定
+const isProduction = process.env.NODE_ENV === 'production';
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // 啟用 SSL，並設定 rejectUnauthorized: false
-  // 這是因為我們是從外部連線到 Render，Render 需要 SSL
-  ssl: {
-    rejectUnauthorized: false
-  }
+  // 只有在 "production" (Render 部署) 環境下才停用 SSL
+  // 在 "development" (本地) 環境下，我們會啟用 SSL 來連線
+  ssl: isProduction 
+    ? false // Render 內部連線不需要 SSL
+    : { rejectUnauthorized: false } // 本地外部連線需要 SSL
 });
 
 // NEW: 資料庫初始化函式
