@@ -448,6 +448,7 @@ const createActivity = async (req, res, next) => {
     // 回傳前端需要的值 (欄位名稱可能需要轉換)
     res.status(201).json({ data: {
       ...newActivity,
+      date: toISODateString(newActivity.date), // <-- 格式化回傳
       durationMinutes: newActivity.duration_minutes,
       photoUrl: newActivity.photo_url,
       isPublic: newActivity.is_public,
