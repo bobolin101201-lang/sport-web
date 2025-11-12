@@ -31,15 +31,15 @@ const activityMessage = document.querySelector('#activity-message');
 const activityList = document.querySelector('#activity-list');
 const activityListSection = document.querySelector('#activity-list-card');
 const publicList = document.querySelector('#public-activity-list');
-const activitySubmitButton = document.querySelector('#activity-submit');
-const cancelEditButton = document.querySelector('#cancel-edit');
-const activityShareCheckbox = document.querySelector('#is-public');
+const activitySubmitButton = document.querySelector('#activity-submit-floating');
+const cancelEditButton = document.querySelector('#floating-form-cancel');
+const activityShareCheckbox = document.querySelector('#is-public-floating');
 const dateInput = document.querySelector('#date');
-const sportInput = document.querySelector('#sport');
-const durationInput = document.querySelector('#duration');
-const intensitySelect = document.querySelector('#intensity');
-const notesInput = document.querySelector('#notes');
-const photoInput = document.querySelector('#photo');
+const sportInput = document.querySelector('#sport-floating');
+const durationInput = document.querySelector('#duration-floating');
+const intensitySelect = document.querySelector('#intensity-floating');
+const notesInput = document.querySelector('#notes-floating');
+const photoInput = document.querySelector('#photo-floating');
 const activityFormSection = activityForm?.closest('section');
 let activityFormToggleButton = null;
 let activityFormBodyContainer = null;
@@ -174,6 +174,7 @@ function initializeActivityFormToggle() {
 }
 
 function resetActivityForm({ keepMessage = false } = {}) {
+  // 重置主表單
   if (activityForm) {
     activityForm.reset();
     activityForm.dataset.mode = 'create';
@@ -184,59 +185,212 @@ function resetActivityForm({ keepMessage = false } = {}) {
   if (photoInput) {
     photoInput.value = '';
   }
+  
+  // 重置浮動表單所有字段
+  const floatingForm = document.getElementById('activity-form-floating');
+  if (floatingForm) {
+    floatingForm.reset();
+    floatingForm.dataset.mode = 'create';
+    
+    // 重置所有浮動表單輸入
+    const sportInputFloat = document.querySelector('#sport-floating');
+    const durationInputFloat = document.querySelector('#duration-floating');
+    const intensityInputFloat = document.querySelector('#intensity-floating');
+    const notesInputFloat = document.querySelector('#notes-floating');
+    const photoInputFloat = document.querySelector('#photo-floating');
+    const isPublicFloat = document.querySelector('#is-public-floating');
+    
+    if (sportInputFloat) sportInputFloat.value = '';
+    if (durationInputFloat) durationInputFloat.value = '';
+    if (intensityInputFloat) intensityInputFloat.value = 'moderate';
+    if (notesInputFloat) notesInputFloat.value = '';
+    if (photoInputFloat) photoInputFloat.value = '';
+    if (isPublicFloat) isPublicFloat.checked = false;
+    
+    // 重置運動 emoji 和顯示
+    const emoji = document.querySelector('#sport-selected-emoji');
+    const display = document.querySelector('#sport-selected-display');
+    if (emoji) emoji.textContent = '🏃';
+    if (display) display.textContent = '選擇運動';
+    
+    // 重置強度按鈕
+    const buttons = floatingForm.querySelectorAll('.button-group-item');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.dataset.value === 'moderate') {
+        btn.classList.add('active');
+      }
+    });
+  }
+  
   state.editingActivityId = null;
+  
+  // 重置主表單提交按鈕
   if (activitySubmitButton) {
     activitySubmitButton.textContent = '儲存';
   }
+  
+  // 重置浮動表單提交按鈕
+  const floatingSubmitButton = document.querySelector('#activity-submit-floating');
+  if (floatingSubmitButton) {
+    floatingSubmitButton.textContent = '儲存';
+  }
+  
   if (cancelEditButton) {
     cancelEditButton.hidden = true;
   }
+  
+  // 重置浮動表單取消按鈕
+  const floatingCancelButton = document.querySelector('#floating-form-cancel');
+  if (floatingCancelButton) {
+    floatingCancelButton.hidden = true;
+  }
+  
   if (!keepMessage) {
     setMessage(activityMessage, '', null);
   }
 }
 
 function startEditing(activity) {
+  console.log('🔧 startEditing called with activity:', activity);
   state.editingActivityId = activity.id;
-  if (activityForm) {
-    activityForm.dataset.mode = 'edit';
+  
+  // 打開浮動表單（直接查詢 DOM）
+  const floatingModal = document.getElementById('floating-form-modal');
+  if (floatingModal) {
+    console.log('✅ Opening floatingFormModal');
+    floatingModal.removeAttribute('hidden');
+  } else {
+    console.log('❌ floatingFormModal not found');
+    return;
   }
-  setActivityFormExpanded(true, { focusField: true, reason: 'edit' });
-  if (dateInput) {
-    dateInput.value = activity.date || '';
+  
+  // 同時更新日期滑塊
+  const yearSliderEl = document.querySelector('#year-slider');
+  const monthSliderEl = document.querySelector('#month-slider');
+  const daySliderEl = document.querySelector('#day-slider');
+  const yearDisplayEl = document.querySelector('#year-display');
+  const monthDisplayEl = document.querySelector('#month-display');
+  const dayDisplayEl = document.querySelector('#day-display');
+  const dateResultDisplayEl = document.querySelector('#date-result-display');
+  const dateField = document.querySelector('#date-floating');
+  
+  const dateParts = (activity.date || '').split('-');
+  if (dateParts.length === 3 && yearSliderEl && monthSliderEl && daySliderEl) {
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]);
+    const day = parseInt(dateParts[2]);
+    console.log(`✅ Setting date sliders to ${year}-${month}-${day}`);
+    yearSliderEl.value = year;
+    monthSliderEl.value = month;
+    daySliderEl.value = day;
+    
+    // 手動更新顯示
+    if (yearDisplayEl) yearDisplayEl.textContent = year;
+    if (monthDisplayEl) monthDisplayEl.textContent = month;
+    if (dayDisplayEl) dayDisplayEl.textContent = String(day).padStart(2, '0');
+    if (dateResultDisplayEl) dateResultDisplayEl.textContent = activity.date;
+    if (dateField) dateField.value = activity.date;
+    
+    updateMaxDay();
   }
-  if (sportInput) {
-    sportInput.value = activity.sport || '';
+  
+  // 填充運動字段
+  const sportField = document.querySelector('#sport-floating');
+  if (sportField) {
+    console.log('✅ Setting sport to:', activity.sport);
+    sportField.value = activity.sport || '';
+    
+    // 更新 emoji 和運動名稱顯示
+    const sportInfo = SPORTS.find(s => s.name === activity.sport);
+    if (sportInfo) {
+      const emoji = document.querySelector('#sport-selected-emoji');
+      if (emoji) emoji.textContent = sportInfo.emoji;
+      console.log('✅ Updated sport emoji to:', sportInfo.emoji);
+    }
+    const sportDisplay = document.querySelector('#sport-selected-display');
+    if (sportDisplay) {
+      sportDisplay.textContent = activity.sport || '選擇運動';
+      console.log('✅ Updated sport display to:', activity.sport);
+    }
+  } else {
+    console.log('❌ sport field not found');
   }
-  if (durationInput) {
-    durationInput.value = activity.durationMinutes ?? '';
+  
+  // 填充時間字段
+  const durationField = document.querySelector('#duration-floating');
+  if (durationField) {
+    console.log('✅ Setting duration to:', activity.durationMinutes);
+    durationField.value = activity.durationMinutes ?? '';
+  } else {
+    console.log('❌ duration field not found');
   }
-  if (intensitySelect) {
-    intensitySelect.value = activity.intensity || 'moderate';
+  
+  // 填充強度字段
+  const intensityField = document.querySelector('#intensity-floating');
+  if (intensityField) {
+    console.log('✅ Setting intensity to:', activity.intensity);
+    intensityField.value = activity.intensity || 'moderate';
+    
+    // 更新強度按鈕狀態
+    const buttons = floatingModal.querySelectorAll('[data-value]');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      if (btn.dataset.value === (activity.intensity || 'moderate')) {
+        btn.classList.add('active');
+      }
+    });
+  } else {
+    console.log('❌ intensity field not found');
   }
-  if (notesInput) {
-    notesInput.value = activity.notes || '';
+  
+  // 填充備註字段
+  const notesField = document.querySelector('#notes-floating');
+  if (notesField) {
+    console.log('✅ Setting notes to:', activity.notes);
+    notesField.value = activity.notes || '';
+  } else {
+    console.log('❌ notes field not found');
   }
-  if (activityShareCheckbox) {
-    activityShareCheckbox.checked = Boolean(activity.isPublic);
+  
+  // 填充公開狀態
+  const isPublicField = document.querySelector('#is-public-floating');
+  if (isPublicField) {
+    console.log('✅ Setting isPublic to:', activity.isPublic);
+    isPublicField.checked = Boolean(activity.isPublic);
+  } else {
+    console.log('❌ isPublic field not found');
   }
-  if (photoInput) {
-    photoInput.value = '';
+  
+  // 清空照片字段（編輯時不載入舊照片，留空表示保持原有照片）
+  const photoField = document.querySelector('#photo-floating');
+  if (photoField) {
+    photoField.value = '';
+    console.log('✅ Cleared photo field');
   }
-  if (activitySubmitButton) {
-    activitySubmitButton.textContent = '更新紀錄';
+  
+  // 改變提交按鈕文本為「更新紀錄」
+  const submitButton = document.querySelector('#activity-submit-floating');
+  if (submitButton) {
+    submitButton.textContent = '更新紀錄';
+    console.log('✅ Changed submit button to "更新紀錄"');
   }
-  if (cancelEditButton) {
-    cancelEditButton.hidden = false;
+  
+  // 顯示取消按鈕
+  const cancelButton = document.querySelector('#floating-form-cancel');
+  if (cancelButton) {
+    cancelButton.hidden = false;
+    console.log('✅ Showed cancel button');
   }
-  setMessage(
-    activityMessage,
-    '編輯模式：更新欄位並提交。留空照片可保持現有照片。',
-    'info'
-  );
-  if (activityForm) {
-    activityForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  
+  // 顯示編輯模式訊息
+  const messageEl = floatingModal.querySelector('.form-message') || activityMessage;
+  if (messageEl) {
+    setMessage(messageEl, '編輯模式：更新欄位並提交。留空照片可保持現有照片。', 'info');
+    console.log('✅ Set edit mode message');
   }
+  
+  console.log('✅ startEditing completed successfully');
 }
 
 function getMonthStart(date) {
@@ -724,20 +878,33 @@ async function refreshWeather() {
 }
 
 async function handleActivityListClick(event) {
+  console.log('🎯 handleActivityListClick triggered', event.target, event.target.dataset);
   const actionButton = event.target.closest('[data-action]');
-  if (!actionButton) return;
+  if (!actionButton) {
+    console.log('❌ No actionButton found');
+    return;
+  }
 
   const { action, id } = actionButton.dataset;
-  if (!action || !id) return;
+  console.log('📋 Action:', action, 'ID:', id);
+  if (!action || !id) {
+    console.log('❌ No action or id');
+    return;
+  }
 
   // 先從私人列表查找，再從社群牆查找
   let activity = state.activities.find((item) => item.id === id);
   if (!activity) {
     activity = state.publicFeed.find((item) => item.id === id);
   }
-  if (!activity) return;
+  if (!activity) {
+    console.log('❌ Activity not found');
+    return;
+  }
+  console.log('✅ Activity found:', activity);
 
   if (action === 'edit') {
+    console.log('✏️ Starting edit mode');
     event.preventDefault();
     startEditing(activity);
     return;
@@ -1096,6 +1263,13 @@ function selectSport(name, emoji) {
 // 運動強度按鈕群組
 const intensityButtons = document.querySelectorAll('#intensity-buttons .button-group-item');
 const intensityInputFloating = document.querySelector('#intensity-floating');
+const sportInputFloating = document.querySelector('#sport-floating');
+const durationInputFloating = document.querySelector('#duration-floating');
+const notesInputFloating = document.querySelector('#notes-floating');
+const floatingFormCancelButton = document.querySelector('#floating-form-cancel');
+const activitySubmitButtonFloating = document.querySelector('#activity-submit-floating');
+const floatingActivityMessage = document.querySelector('#activity-message-floating');
+
 intensityButtons.forEach((btn) => {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -1275,6 +1449,19 @@ registerForm.addEventListener('submit', async (event) => {
 // 共用提交處理函數
 async function handleActivitySubmit(form, messageElement) {
   const formData = new FormData(form);
+  
+  // 確保日期格式正確
+  const dateValue = formData.get('date');
+  console.log('📅 Form date value:', dateValue);
+  
+  // 驗證日期格式 YYYY-MM-DD
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dateValue)) {
+    console.error('❌ Invalid date format:', dateValue);
+    setMessage(messageElement, 'Invalid date format. Please use YYYY-MM-DD.', 'error');
+    return;
+  }
+  
   const durationValue = Number(formData.get('durationMinutes'));
   const isEditing = Boolean(state.editingActivityId);
 
@@ -1293,6 +1480,7 @@ async function handleActivitySubmit(form, messageElement) {
   formData.set('durationMinutes', String(durationValue));
   formData.set('sport', sportValue);
   formData.set('notes', notesValue);
+  formData.set('date', dateValue); // 確保日期被正確設置
   
   // 判斷要使用哪個複選框
   let isPublicValue = 'false';
@@ -1308,6 +1496,14 @@ async function handleActivitySubmit(form, messageElement) {
 
   try {
     setMessage(messageElement, isEditing ? 'Updating...' : 'Saving...', null);
+    console.log('📤 Submitting activity:', {
+      date: dateValue,
+      sport: sportValue,
+      duration: durationValue,
+      isPublic: isPublicValue,
+      isEditing
+    });
+    
     if (isEditing) {
       await api.updateActivity(state.editingActivityId, formData);
       setMessage(messageElement, '活動已更新。', 'success');
