@@ -831,14 +831,29 @@ body:not(.is-authenticated) .card {
 
 .calendar-day.has-activity {
   cursor: pointer;
-  border-color: rgba(200, 168, 157, 0.5);
+  border-color: var(--color-teal-dark);
+  background: rgba(84, 138, 127, 0.1);
+  position: relative;
+}
+
+.calendar-day.has-activity::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-teal-dark);
+  box-shadow: 0 0 4px rgba(84, 138, 127, 0.6);
 }
 
 .calendar-day.has-activity:hover,
 .calendar-day.has-activity:focus-visible {
-  border-color: rgba(200, 168, 157, 0.8);
+  border-color: var(--color-teal-dark);
+  background: rgba(84, 138, 127, 0.2);
   transform: translateY(-2px);
-  background: rgba(200, 168, 157, 0.15);
+  box-shadow: 0 2px 8px rgba(84, 138, 127, 0.3);
 }
 
 .calendar-day.selected {
