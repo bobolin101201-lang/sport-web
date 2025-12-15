@@ -2792,3 +2792,60 @@ body:not(.is-authenticated) .fab-button {
 body:not(.is-authenticated) .chat-button {
   display: none;
 }
+
+/* ========== 設定相關樣式 ========== */
+.settings-section {
+  margin-bottom: 2rem;
+}
+
+.settings-section h4 {
+  margin: 0 0 1rem 0;
+  color: var(--text-dark);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.login-history-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--color-cream);
+  border-radius: 8px;
+  background: var(--color-white);
+}
+
+.login-history-item {
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-cream);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.login-history-item:last-child {
+  border-bottom: none;
+}
+
+.login-time {
+  font-weight: 600;
+  color: var(--text-dark);
+  font-size: 0.95rem;
+}
+
+.login-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+
+.login-ip,
+.login-device {
+  flex: 1;
+}
+
+.settings-description {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
+}

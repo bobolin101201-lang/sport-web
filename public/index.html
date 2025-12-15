@@ -25,6 +25,7 @@
           <p class="sidebar-display-name" id="sidebar-display-name">使用者名稱</p>
         </div>
         <div class="sidebar-actions">
+          <button type="button" id="settings-btn" class="sidebar-action-btn">設定</button>
           <button type="button" id="change-password-btn" class="sidebar-action-btn">修改密碼</button>
           <button type="button" id="delete-account-btn" class="sidebar-action-btn danger">刪除帳號</button>
         </div>
@@ -313,6 +314,29 @@
             </div>
             <p id="delete-account-message" class="form-message"></p>
           </form>
+        </div>
+      </div>
+
+      <!-- 設定對話框 -->
+      <div id="settings-modal" class="modal" hidden>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>帳號設定</h3>
+            <button type="button" class="modal-close" id="settings-close">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="settings-section">
+              <h4>登入歷史</h4>
+              <div id="login-history-list" class="login-history-list">
+                <p class="loading">載入中...</p>
+              </div>
+            </div>
+            <div class="settings-section">
+              <h4>裝置管理</h4>
+              <button type="button" id="logout-all-btn" class="danger small">全部登出</button>
+              <p class="settings-description">登出所有裝置上的登入狀態</p>
+            </div>
+          </div>
         </div>
       </div>
 

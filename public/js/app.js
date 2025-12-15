@@ -73,14 +73,20 @@ const toggleHistoryButton = document.querySelector('#toggle-history-btn');
 // 側邊欄按鈕
 const changePasswordBtn = document.querySelector('#change-password-btn');
 const deleteAccountBtn = document.querySelector('#delete-account-btn');
+const settingsBtn = document.querySelector('#settings-btn');
 
 // 對話框元素
 const changePasswordModal = document.querySelector('#change-password-modal');
 const deleteAccountModal = document.querySelector('#delete-account-modal');
+const settingsModal = document.querySelector('#settings-modal');
 const changePasswordForm = document.querySelector('#change-password-form');
 const deleteAccountForm = document.querySelector('#delete-account-form');
 const changePasswordMessage = document.querySelector('#change-password-message');
 const deleteAccountMessage = document.querySelector('#delete-account-message');
+
+// 設定相關元素
+const loginHistoryList = document.querySelector('#login-history-list');
+const logoutAllBtn = document.querySelector('#logout-all-btn');
 
 const today = new Date();
 
@@ -987,6 +993,26 @@ const api = {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(payload.error || 'Failed to delete account');
+    }
+    return payload.data;
+  },
+
+  async getLoginHistory() {
+    const response = await authorizedFetch('/api/login-history');
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to get login history');
+    }
+    return payload.data ?? [];
+  },
+
+  async logoutAllDevices() {
+    const response = await authorizedFetch('/api/logout-all', {
+      method: 'POST'
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to logout all devices');
     }
     return payload.data;
   },
@@ -2525,6 +2551,94 @@ async function handleDeleteAccount(event) {
   }
 }
 
+// ========== 設定相關函數 ==========
+function showSettingsModal() {
+  if (settingsModal) {
+    settingsModal.removeAttribute('hidden');
+    loadLoginHistory();
+  }
+}
+
+function hideSettingsModal() {
+  if (settingsModal) {
+    settingsModal.setAttribute('hidden', 'true');
+  }
+}
+
+async function loadLoginHistory() {
+  if (!loginHistoryList) return;
+
+  try {
+    const history = await api.getLoginHistory();
+    renderLoginHistory(history);
+  } catch (err) {
+    console.error('Failed to load login history:', err);
+    loginHistoryList.innerHTML = '<p class="error">載入失敗，請稍後再試</p>';
+  }
+}
+
+function renderLoginHistory(history) {
+  if (!loginHistoryList) return;
+
+  if (!history.length) {
+    loginHistoryList.innerHTML = '<p>尚未有登入記錄</p>';
+    return;
+  }
+
+  const historyHtml = history.map(item => {
+    const loginTime = new Date(item.loginTime).toLocaleString('zh-TW');
+    const ipAddress = item.ipAddress || '未知';
+    const userAgent = parseUserAgent(item.userAgent);
+
+    return `
+      <div class="login-history-item">
+        <div class="login-time">${loginTime}</div>
+        <div class="login-details">
+          <span class="login-ip">IP: ${ipAddress}</span>
+          <span class="login-device">${userAgent}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  loginHistoryList.innerHTML = historyHtml;
+}
+
+function parseUserAgent(userAgent) {
+  if (!userAgent) return '未知裝置';
+
+  // 簡化版用戶代理解析
+  if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
+    return '行動裝置';
+  } else if (userAgent.includes('Chrome')) {
+    return 'Chrome 瀏覽器';
+  } else if (userAgent.includes('Firefox')) {
+    return 'Firefox 瀏覽器';
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    return 'Safari 瀏覽器';
+  } else if (userAgent.includes('Edge')) {
+    return 'Edge 瀏覽器';
+  } else {
+    return '桌面瀏覽器';
+  }
+}
+
+async function handleLogoutAllDevices() {
+  const confirmed = window.confirm('確定要登出所有裝置嗎？您將需要在所有裝置上重新登入。');
+  if (!confirmed) return;
+
+  try {
+    await api.logoutAllDevices();
+    alert('已成功登出所有裝置！');
+    // 登出當前裝置
+    Storage.clearAll();
+    location.reload();
+  } catch (err) {
+    console.error('Logout all devices error:', err);
+    alert('登出失敗：' + err.message);
+  }
+}
+
 // ========== 事件監聽器 ==========
 if (changePasswordBtn) {
   changePasswordBtn.addEventListener('click', showChangePasswordModal);
@@ -2532,6 +2646,14 @@ if (changePasswordBtn) {
 
 if (deleteAccountBtn) {
   deleteAccountBtn.addEventListener('click', showDeleteAccountModal);
+}
+
+if (settingsBtn) {
+  settingsBtn.addEventListener('click', showSettingsModal);
+}
+
+if (logoutAllBtn) {
+  logoutAllBtn.addEventListener('click', handleLogoutAllDevices);
 }
 
 // 用戶名檢查事件監聽器
@@ -2549,6 +2671,8 @@ document.querySelectorAll('.modal-close, [id$="-close"], [id$="-cancel"]').forEa
       hideChangePasswordModal();
     } else if (modalId.includes('delete-account')) {
       hideDeleteAccountModal();
+    } else if (modalId.includes('settings')) {
+      hideSettingsModal();
     }
   });
 });

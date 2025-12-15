@@ -114,6 +114,18 @@ async function initializeDatabase() {
       );
     `);
 
+    // 建立 login_history 資料表 (用於儲存登入歷史)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS login_history (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        ip_address INET,
+        user_agent TEXT,
+        login_time TIMESTAMPTZ DEFAULT NOW(),
+        session_token TEXT REFERENCES sessions(token) ON DELETE CASCADE
+      );
+    `);
+
     // 建立 goals 資料表 (用於儲存運動目標)
     await client.query(`
       CREATE TABLE IF NOT EXISTS goals (
@@ -453,6 +465,23 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
     const token = await createSession(match.id);
+    
+    // 記錄登入歷史
+    try {
+      await pool.query(`
+        INSERT INTO login_history (user_id, ip_address, user_agent, session_token)
+        VALUES ($1, $2, $3, $4)
+      `, [
+        match.id,
+        req.ip || req.connection.remoteAddress,
+        req.get('User-Agent') || '',
+        token
+      ]);
+    } catch (historyErr) {
+      console.error('Failed to record login history:', historyErr);
+      // 不影響登入流程
+    }
+    
     res.json({
       data: {
         token,
@@ -484,6 +513,46 @@ const requireAuth = async (req, res, next) => {
     res.status(401).json({ error: 'Unauthorized.' });
   }
 };
+
+// 獲取登入歷史
+app.get('/api/login-history', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        lh.login_time,
+        lh.ip_address,
+        lh.user_agent,
+        lh.session_token
+      FROM login_history lh
+      WHERE lh.user_id = $1
+      ORDER BY lh.login_time DESC
+      LIMIT 5
+    `, [req.userId]);
+
+    res.json({
+      data: result.rows.map(row => ({
+        loginTime: row.login_time,
+        ipAddress: row.ip_address,
+        userAgent: row.user_agent,
+        sessionToken: row.session_token
+      }))
+    });
+  } catch (err) {
+    console.error('Login history error:', err);
+    res.status(500).json({ error: 'Server error retrieving login history.' });
+  }
+});
+
+// 全部登出 - 刪除所有會話
+app.post('/api/logout-all', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.userId]);
+    res.json({ data: { message: 'All sessions logged out successfully.' } });
+  } catch (err) {
+    console.error('Logout all error:', err);
+    res.status(500).json({ error: 'Server error during logout all.' });
+  }
+});
 
 // *** 活動查詢端點 ***
 app.get('/api/activities', requireAuth, async (req, res, next) => {
