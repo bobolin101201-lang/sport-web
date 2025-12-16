@@ -120,6 +120,7 @@
           <button type="button" class="page-tab active" data-page="weather">天氣</button>
           <button type="button" class="page-tab" data-page="checkin">打卡</button>
           <button type="button" class="page-tab" data-page="community">動態</button>
+          <button type="button" class="page-tab" data-page="invitations">邀請</button>
           <button type="button" class="page-tab" data-page="records">個人</button>
         </div>
       </div>
@@ -193,10 +194,37 @@
       </div>
       <!-- 結束社群頁面 -->
 
-
+      <div id="invitations-page" class="page-content">
+        <!-- 邀請頁面 -->
+        <section class="card full-width" id="friend-invitations-card">
+          <h2>👥 好友邀請</h2>
+          <div id="invitations-container">
+            <div id="invitations-empty" class="empty-state">
+              <p>目前沒有好友邀請</p>
+            </div>
+            <ul id="invitations-list" class="invitations-list"></ul>
+          </div>
+        </section>
+      </div>
+      <!-- 結束邀請頁面 -->
 
       <div id="records-page" class="page-content">
         <!-- 個人頁面內容 -->
+        
+        <!-- 好友管理卡片 -->
+        <section class="card full-width" id="friends-card">
+          <div class="friends-header">
+            <h2>👫 我的好友</h2>
+            <button type="button" id="add-friend-btn" class="secondary small">新增好友</button>
+          </div>
+          
+          <div id="friends-container">
+            <div id="friends-empty" class="empty-state">
+              <p>還沒有好友，開始新增好友吧！</p>
+            </div>
+            <ul id="friends-list" class="friends-list"></ul>
+          </div>
+        </section>
         
         <!-- 運動目標卡片 -->
         <section class="card full-width" id="goals-card">
@@ -337,6 +365,31 @@
               <p class="settings-description">登出所有裝置上的登入狀態</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 新增好友對話框 -->
+      <div id="add-friend-modal" class="modal" hidden>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>新增好友</h3>
+            <button type="button" class="modal-close" id="add-friend-close">✕</button>
+          </div>
+          <form id="add-friend-form" class="modal-form">
+            <div class="form-field">
+              <label for="search-username">搜尋使用者</label>
+              <input id="search-username" name="username" type="text" placeholder="輸入使用者名稱" required />
+              <p class="form-hint">輸入想要新增的使用者名稱</p>
+            </div>
+            <div id="search-results" class="search-results" hidden>
+              <ul id="search-results-list" class="search-results-list"></ul>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary" id="search-user-btn">搜尋</button>
+              <button type="button" class="secondary" id="add-friend-cancel">取消</button>
+            </div>
+            <p id="add-friend-message" class="form-message"></p>
+          </form>
         </div>
       </div>
 

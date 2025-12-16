@@ -139,6 +139,44 @@ async function initializeDatabase() {
       );
     `);
 
+    // 建立 friendships 資料表 (用於儲存好友關係)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS friendships (
+        id TEXT PRIMARY KEY,
+        user_id_1 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id_2 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id_1, user_id_2),
+        CHECK (user_id_1 < user_id_2)
+      );
+    `);
+
+    // 建立 friend_requests 資料表 (用於儲存好友請求)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        id TEXT PRIMARY KEY,
+        from_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        to_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(from_user_id, to_user_id),
+        CHECK (from_user_id != to_user_id)
+      );
+    `);
+
+    // 建立 blacklist 資料表 (用於儲存黑名單)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS blacklist (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        blocked_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, blocked_user_id),
+        CHECK (user_id != blocked_user_id)
+      );
+    `);
+
     console.log('Database tables checked/created successfully.');
 
     // *** NEW: 插入範例使用者 (如果他不存在)，並使用 bcrypt 加密密碼 ***
@@ -583,13 +621,37 @@ app.get('/api/activities', requireAuth, async (req, res, next) => {
 
 app.get('/api/activities/public', requireAuth, async (req, res, next) => {
   try {
-    const result = await pool.query(
-      `SELECT a.id, a.sport, a.duration_minutes, a.intensity, a.notes, a.photo_url, a.is_public, a.owner_id, a.created_at, a.updated_at, u.display_name as owner_name, to_char(a.date, 'YYYY-MM-DD') AS date_str
-       FROM activities a
-       JOIN users u ON a.owner_id = u.id
-       WHERE a.is_public = true 
-       ORDER BY a.created_at DESC`
+    const userId = req.userId;
+
+    // 獲取用戶的好友列表
+    const friendsResult = await pool.query(
+      `SELECT user_id_1, user_id_2 FROM friendships 
+       WHERE user_id_1 = $1 OR user_id_2 = $1`,
+      [userId]
     );
+
+    const friendIds = friendsResult.rows.map(row => 
+      row.user_id_1 === userId ? row.user_id_2 : row.user_id_1
+    );
+
+    // 查詢公開活動或好友的活動
+    let query = `
+      SELECT a.id, a.sport, a.duration_minutes, a.intensity, a.notes, a.photo_url, a.is_public, a.owner_id, a.created_at, a.updated_at, u.display_name as owner_name, to_char(a.date, 'YYYY-MM-DD') AS date_str
+      FROM activities a
+      JOIN users u ON a.owner_id = u.id
+      WHERE a.is_public = true`;
+    
+    const params = [];
+
+    // 如果有好友，也包含好友的活動
+    if (friendIds.length > 0) {
+      query += ` OR a.owner_id = ANY($1)`;
+      params.push(friendIds);
+    }
+
+    query += ` ORDER BY a.created_at DESC`;
+
+    const result = await pool.query(query, params.length > 0 ? params : []);
     
     // 獲取所有活動擁有者的目標達成狀態
     const ownerIds = [...new Set(result.rows.map(row => row.owner_id))];
@@ -643,10 +705,11 @@ app.get('/api/activities/public', requireAuth, async (req, res, next) => {
       date: activity.date_str,
       durationMinutes: activity.duration_minutes,
       photoUrl: activity.photo_url,
-      isPublic: true,
+      isPublic: activity.is_public,
       ownerId: activity.owner_id,
       ownerName: activity.owner_name,
       isOwner: activity.owner_id === req.userId,
+      isFriend: friendIds.includes(activity.owner_id),
       ownerGoals: goalsAchievements[activity.owner_id] || null
     }));
 
@@ -1298,6 +1361,336 @@ app.post('/api/chat', requireAuth, async (req, res, next) => {
     });
   } catch (err) {
     console.error('AI 聊天錯誤:', err);
+    next(err);
+  }
+});
+
+// *** 好友相關 API ***
+
+// 發送好友請求
+app.post('/api/friends/request', requireAuth, async (req, res, next) => {
+  try {
+    const { toUserId } = req.body;
+    const fromUserId = req.userId;
+
+    if (!toUserId) {
+      return res.status(400).json({ error: '缺少 toUserId' });
+    }
+
+    if (fromUserId === toUserId) {
+      return res.status(400).json({ error: '不能添加自己為好友' });
+    }
+
+    // 檢查目標用戶是否存在
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [toUserId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: '用戶不存在' });
+    }
+
+    // 檢查是否已經是好友
+    const friendshipCheck = await pool.query(
+      `SELECT id FROM friendships 
+       WHERE (user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $3 AND user_id_2 = $4)`,
+      [fromUserId, toUserId, toUserId, fromUserId]
+    );
+    if (friendshipCheck.rows.length > 0) {
+      return res.status(400).json({ error: '已經是好友' });
+    }
+
+    // 檢查是否已經有待決的請求
+    const existingRequest = await pool.query(
+      `SELECT id FROM friend_requests 
+       WHERE from_user_id = $1 AND to_user_id = $2 AND status = 'pending'`,
+      [fromUserId, toUserId]
+    );
+    if (existingRequest.rows.length > 0) {
+      return res.status(400).json({ error: '已經發送過請求，請等待對方回應' });
+    }
+
+    // 檢查是否被黑名單阻擋
+    const blacklistCheck = await pool.query(
+      'SELECT id FROM blacklist WHERE user_id = $1 AND blocked_user_id = $2',
+      [toUserId, fromUserId]
+    );
+    if (blacklistCheck.rows.length > 0) {
+      return res.status(403).json({ error: '無法發送好友請求' });
+    }
+
+    // 建立好友請求
+    const requestId = `req-${fromUserId}-${toUserId}-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO friend_requests (id, from_user_id, to_user_id, status) 
+       VALUES ($1, $2, $3, $4)`,
+      [requestId, fromUserId, toUserId, 'pending']
+    );
+
+    res.json({ data: { message: '好友請求已發送' } });
+  } catch (err) {
+    console.error('發送好友請求錯誤:', err);
+    next(err);
+  }
+});
+
+// 獲取待決好友請求
+app.get('/api/friends/requests', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.userId;
+
+    const result = await pool.query(
+      `SELECT fr.id, fr.from_user_id, u.display_name, u.username, fr.created_at
+       FROM friend_requests fr
+       JOIN users u ON fr.from_user_id = u.id
+       WHERE fr.to_user_id = $1 AND fr.status = 'pending'
+       ORDER BY fr.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ data: result.rows.map(row => ({
+      requestId: row.id,
+      fromUserId: row.from_user_id,
+      displayName: row.display_name,
+      username: row.username,
+      createdAt: row.created_at
+    })) });
+  } catch (err) {
+    console.error('獲取好友請求錯誤:', err);
+    next(err);
+  }
+});
+
+// 接受好友請求
+app.post('/api/friends/requests/:requestId/accept', requireAuth, async (req, res, next) => {
+  try {
+    const { requestId } = req.params;
+    const toUserId = req.userId;
+
+    const requestResult = await pool.query(
+      `SELECT from_user_id FROM friend_requests 
+       WHERE id = $1 AND to_user_id = $2 AND status = 'pending'`,
+      [requestId, toUserId]
+    );
+
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: '請求不存在或已處理' });
+    }
+
+    const fromUserId = requestResult.rows[0].from_user_id;
+
+    // 建立好友關係 (確保一致的順序)
+    const user1 = fromUserId < toUserId ? fromUserId : toUserId;
+    const user2 = fromUserId < toUserId ? toUserId : fromUserId;
+
+    const friendshipId = `friendship-${user1}-${user2}-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO friendships (id, user_id_1, user_id_2) VALUES ($1, $2, $3)`,
+      [friendshipId, user1, user2]
+    );
+
+    // 更新請求狀態
+    await pool.query(
+      `UPDATE friend_requests SET status = 'accepted', updated_at = NOW() WHERE id = $1`,
+      [requestId]
+    );
+
+    res.json({ data: { message: '好友請求已接受' } });
+  } catch (err) {
+    console.error('接受好友請求錯誤:', err);
+    next(err);
+  }
+});
+
+// 拒絕好友請求
+app.post('/api/friends/requests/:requestId/reject', requireAuth, async (req, res, next) => {
+  try {
+    const { requestId } = req.params;
+    const toUserId = req.userId;
+
+    const requestResult = await pool.query(
+      `SELECT id FROM friend_requests 
+       WHERE id = $1 AND to_user_id = $2 AND status = 'pending'`,
+      [requestId, toUserId]
+    );
+
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ error: '請求不存在或已處理' });
+    }
+
+    await pool.query(
+      `UPDATE friend_requests SET status = 'rejected', updated_at = NOW() WHERE id = $1`,
+      [requestId]
+    );
+
+    res.json({ data: { message: '好友請求已拒絕' } });
+  } catch (err) {
+    console.error('拒絕好友請求錯誤:', err);
+    next(err);
+  }
+});
+
+// 獲取好友列表
+app.get('/api/friends', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.userId;
+
+    const result = await pool.query(
+      `SELECT u.id, u.display_name, u.username
+       FROM friendships f
+       JOIN users u ON (
+         CASE 
+           WHEN f.user_id_1 = $1 THEN f.user_id_2 = u.id
+           ELSE f.user_id_1 = u.id
+         END
+       )
+       WHERE f.user_id_1 = $1 OR f.user_id_2 = $1
+       ORDER BY u.display_name`,
+      [userId]
+    );
+
+    res.json({ data: result.rows.map(row => ({
+      userId: row.id,
+      displayName: row.display_name,
+      username: row.username
+    })) });
+  } catch (err) {
+    console.error('獲取好友列表錯誤:', err);
+    next(err);
+  }
+});
+
+// 移除好友
+app.delete('/api/friends/:friendId', requireAuth, async (req, res, next) => {
+  try {
+    const { friendId } = req.params;
+    const userId = req.userId;
+
+    const friendshipResult = await pool.query(
+      `SELECT id FROM friendships 
+       WHERE (user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $3 AND user_id_2 = $4)`,
+      [userId, friendId, friendId, userId]
+    );
+
+    if (friendshipResult.rows.length === 0) {
+      return res.status(404).json({ error: '好友關係不存在' });
+    }
+
+    await pool.query(
+      `DELETE FROM friendships 
+       WHERE (user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $3 AND user_id_2 = $4)`,
+      [userId, friendId, friendId, userId]
+    );
+
+    res.json({ data: { message: '好友已移除' } });
+  } catch (err) {
+    console.error('移除好友錯誤:', err);
+    next(err);
+  }
+});
+
+// 添加黑名單
+app.post('/api/blacklist', requireAuth, async (req, res, next) => {
+  try {
+    const { blockedUserId } = req.body;
+    const userId = req.userId;
+
+    if (!blockedUserId) {
+      return res.status(400).json({ error: '缺少 blockedUserId' });
+    }
+
+    if (userId === blockedUserId) {
+      return res.status(400).json({ error: '不能黑名單自己' });
+    }
+
+    // 檢查目標用戶是否存在
+    const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [blockedUserId]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: '用戶不存在' });
+    }
+
+    // 檢查是否已經在黑名單中
+    const blacklistCheck = await pool.query(
+      'SELECT id FROM blacklist WHERE user_id = $1 AND blocked_user_id = $2',
+      [userId, blockedUserId]
+    );
+    if (blacklistCheck.rows.length > 0) {
+      return res.status(400).json({ error: '該用戶已在黑名單中' });
+    }
+
+    // 如果是好友，先移除好友關係
+    const friendshipResult = await pool.query(
+      `SELECT id FROM friendships 
+       WHERE (user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $3 AND user_id_2 = $4)`,
+      [userId, blockedUserId, blockedUserId, userId]
+    );
+    if (friendshipResult.rows.length > 0) {
+      await pool.query(
+        `DELETE FROM friendships 
+         WHERE (user_id_1 = $1 AND user_id_2 = $2) OR (user_id_1 = $3 AND user_id_2 = $4)`,
+        [userId, blockedUserId, blockedUserId, userId]
+      );
+    }
+
+    // 添加到黑名單
+    const blacklistId = `blacklist-${userId}-${blockedUserId}-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO blacklist (id, user_id, blocked_user_id) VALUES ($1, $2, $3)`,
+      [blacklistId, userId, blockedUserId]
+    );
+
+    res.json({ data: { message: '用戶已添加到黑名單' } });
+  } catch (err) {
+    console.error('添加黑名單錯誤:', err);
+    next(err);
+  }
+});
+
+// 移除黑名單
+app.delete('/api/blacklist/:blockedUserId', requireAuth, async (req, res, next) => {
+  try {
+    const { blockedUserId } = req.params;
+    const userId = req.userId;
+
+    const blacklistResult = await pool.query(
+      'SELECT id FROM blacklist WHERE user_id = $1 AND blocked_user_id = $2',
+      [userId, blockedUserId]
+    );
+
+    if (blacklistResult.rows.length === 0) {
+      return res.status(404).json({ error: '該用戶不在黑名單中' });
+    }
+
+    await pool.query(
+      'DELETE FROM blacklist WHERE user_id = $1 AND blocked_user_id = $2',
+      [userId, blockedUserId]
+    );
+
+    res.json({ data: { message: '用戶已從黑名單移除' } });
+  } catch (err) {
+    console.error('移除黑名單錯誤:', err);
+    next(err);
+  }
+});
+
+// 獲取黑名單
+app.get('/api/blacklist', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.userId;
+
+    const result = await pool.query(
+      `SELECT u.id, u.display_name, u.username
+       FROM blacklist b
+       JOIN users u ON b.blocked_user_id = u.id
+       WHERE b.user_id = $1
+       ORDER BY u.display_name`,
+      [userId]
+    );
+
+    res.json({ data: result.rows.map(row => ({
+      userId: row.id,
+      displayName: row.display_name,
+      username: row.username
+    })) });
+  } catch (err) {
+    console.error('獲取黑名單錯誤:', err);
     next(err);
   }
 });

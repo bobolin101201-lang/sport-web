@@ -88,6 +88,22 @@ const deleteAccountMessage = document.querySelector('#delete-account-message');
 const loginHistoryList = document.querySelector('#login-history-list');
 const logoutAllBtn = document.querySelector('#logout-all-btn');
 
+// 好友相關元素
+const addFriendBtn = document.querySelector('#add-friend-btn');
+const addFriendModal = document.querySelector('#add-friend-modal');
+const addFriendForm = document.querySelector('#add-friend-form');
+const addFriendClose = document.querySelector('#add-friend-close');
+const addFriendCancel = document.querySelector('#add-friend-cancel');
+const addFriendMessage = document.querySelector('#add-friend-message');
+const searchUserBtn = document.querySelector('#search-user-btn');
+const searchUsername = document.querySelector('#search-username');
+const searchResults = document.querySelector('#search-results');
+const searchResultsList = document.querySelector('#search-results-list');
+const friendsList = document.querySelector('#friends-list');
+const friendsEmpty = document.querySelector('#friends-empty');
+const invitationsList = document.querySelector('#invitations-list');
+const invitationsEmpty = document.querySelector('#invitations-empty');
+
 const today = new Date();
 
 const state = {
@@ -99,7 +115,10 @@ const state = {
   publicFeed: [],
   editingActivityId: null,
   calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-  selectedCalendarDate: null
+  selectedCalendarDate: null,
+  friends: [],
+  friendRequests: [],
+  blacklist: []
 };
 
 // 會話管理器 - 處理自動登出邏輯
@@ -811,6 +830,11 @@ function applyAuthView() {
     refreshPublicActivities();
     refreshWeather();
     refreshGoals(); // 刷新目標數據
+    // 導入好友功能時會自動初始化，但這裡也調用刷新以確保最新數據
+    import('./friends.js').then(({ refreshFriendsList, refreshFriendRequests }) => {
+      refreshFriendsList();
+      refreshFriendRequests();
+    }).catch(err => console.error('Error loading friends module:', err));
   }
 }
 
@@ -825,6 +849,9 @@ function logout(reason) {
   state.activitiesByDate = new Map();
   state.publicFeed = [];
   state.editingActivityId = null;
+  state.friends = [];
+  state.friendRequests = [];
+  state.blacklist = [];
   Storage.clearAll();
   loginForm.reset();
   registerForm.reset();
@@ -2048,11 +2075,12 @@ function switchPage(pageName) {
   const weatherPage = document.getElementById('weather-page');
   const checkinPage = document.getElementById('checkin-page');
   const communityPage = document.getElementById('community-page');
+  const invitationsPage = document.getElementById('invitations-page');
   const recordsPage = document.getElementById('records-page');
   const pageTabs = document.querySelectorAll('.page-tab');
   
   // 移除所有頁面的 active 類
-  [weatherPage, checkinPage, communityPage, recordsPage].forEach(page => {
+  [weatherPage, checkinPage, communityPage, invitationsPage, recordsPage].forEach(page => {
     page?.classList.remove('active');
   });
 
@@ -2066,6 +2094,9 @@ function switchPage(pageName) {
       break;
     case 'community':
       communityPage?.classList.add('active');
+      break;
+    case 'invitations':
+      invitationsPage?.classList.add('active');
       break;
     case 'records':
       recordsPage?.classList.add('active');
@@ -2852,5 +2883,31 @@ if (document.readyState === 'loading') {
 } else {
   initAIChat();
 }
+
+// ==================== 好友功能初始化 ====================
+// 直接初始化好友功能
+import('./friends.js').then(friendsModule => {
+  console.log('✅ 好友模組已加載');
+  
+  // 初始化 DOM 元素
+  friendsModule.initializeDOMElements();
+  
+  // 將 Storage 和 state 設置為全局可用
+  window.Storage = Storage;
+  window.state = state;
+  
+  // 等待 DOM 完全載入後初始化
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 開始初始化好友功能');
+      friendsModule.initFriends();
+    });
+  } else {
+    console.log('🚀 開始初始化好友功能');
+    friendsModule.initFriends();
+  }
+}).catch(err => {
+  console.error('❌ 好友模組載入失敗:', err);
+});
 
 

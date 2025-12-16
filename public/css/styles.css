@@ -2849,3 +2849,245 @@ body:not(.is-authenticated) .chat-button {
   margin-top: 0.5rem;
   margin-bottom: 1rem;
 }
+/* ==================== 好友功能樣式 ==================== */
+
+.friends-header,
+.goals-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.friends-header h2,
+.goals-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--text-dark);
+}
+
+#friends-container,
+#invitations-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-light);
+  font-size: 0.95rem;
+}
+
+.friends-list,
+.invitations-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.friend-item,
+.invitation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--color-white);
+  border: 1px solid var(--color-cream);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.friend-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-color: var(--color-teal-dark);
+}
+
+.friend-info,
+.invitation-info {
+  flex: 1;
+}
+
+.friend-name,
+.invitation-name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-dark);
+  font-size: 1rem;
+}
+
+.friend-username,
+.invitation-username {
+  margin: 0.25rem 0 0 0;
+  color: var(--text-light);
+  font-size: 0.85rem;
+}
+
+.invitation-time {
+  margin: 0.5rem 0 0 0;
+  color: var(--text-light);
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.friend-actions,
+.invitation-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.friend-action-btn,
+.accept-request-btn,
+.reject-request-btn {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-cream);
+  background: var(--color-white);
+  color: var(--text-dark);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.remove-friend-btn,
+.block-user-btn {
+  padding: 0.4rem 0.6rem;
+  font-size: 1.1rem;
+  background: transparent;
+  border: 1px solid var(--color-cream);
+}
+
+.remove-friend-btn:hover,
+.block-user-btn:hover {
+  background: rgba(200, 168, 157, 0.1);
+  border-color: var(--color-rose);
+}
+
+.accept-request-btn {
+  background: var(--color-teal-dark);
+  color: white;
+  border-color: var(--color-teal-dark);
+}
+
+.accept-request-btn:hover {
+  opacity: 0.9;
+  box-shadow: 0 2px 6px rgba(84, 138, 127, 0.2);
+}
+
+.reject-request-btn {
+  background: transparent;
+  color: var(--text-dark);
+}
+
+.reject-request-btn:hover {
+  background: rgba(122, 139, 150, 0.1);
+}
+
+/* 搜尋結果 */
+.search-results {
+  margin: 1rem 0;
+  padding: 0;
+  border: 1px solid var(--color-cream);
+  border-radius: 8px;
+  background: var(--color-white);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.search-results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-cream);
+  transition: background 0.2s ease;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: rgba(84, 138, 127, 0.05);
+}
+
+.search-result-info {
+  flex: 1;
+}
+
+.search-result-name {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-dark);
+  font-size: 0.95rem;
+}
+
+.search-result-username {
+  margin: 0.25rem 0 0 0;
+  color: var(--text-light);
+  font-size: 0.8rem;
+}
+
+.add-friend-action-btn {
+  padding: 0.5rem 1rem;
+  background: var(--color-teal-dark);
+  color: white;
+  border: 1px solid var(--color-teal-dark);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.add-friend-action-btn:hover {
+  opacity: 0.9;
+  box-shadow: 0 2px 6px rgba(84, 138, 127, 0.2);
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .friends-header,
+  .goals-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .friend-item,
+  .invitation-item,
+  .search-result-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .friend-actions,
+  .invitation-actions {
+    width: 100%;
+    margin-top: 0.75rem;
+  }
+
+  .accept-request-btn,
+  .reject-request-btn {
+    flex: 1;
+  }
+}
+
+.form-hint {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-top: 0.5rem;
+}
