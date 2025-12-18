@@ -15,6 +15,8 @@ class SwipeNavigator {
       { id: 'weather-page', name: 'weather' },
       { id: 'checkin-page', name: 'checkin' },
       { id: 'community-page', name: 'community' },
+      { id: 'invitations-page', name: 'invitations' },
+      { id: 'leaderboard-page', name: 'leaderboard' },
       { id: 'records-page', name: 'records' }
     ];
     
